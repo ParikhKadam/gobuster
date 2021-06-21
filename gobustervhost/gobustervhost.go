@@ -9,6 +9,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/OJ/gobuster/v3/helper"
 	"github.com/OJ/gobuster/v3/libgobuster"
 	"github.com/google/uuid"
 )
@@ -84,7 +85,11 @@ func (v *GobusterVhost) PreRun(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("invalid url %s: %w", v.options.URL, err)
 	}
-	v.domain = urlParsed.Host
+	if v.options.Domain != "" {
+		v.domain = v.options.Domain
+	} else {
+		v.domain = urlParsed.Host
+	}
 
 	// request default vhost for baseline1
 	_, _, _, tmp, err := v.http.Request(ctx, v.options.URL, libgobuster.RequestOptions{ReturnBody: true})
@@ -120,7 +125,7 @@ func (v *GobusterVhost) Run(ctx context.Context, word string, resChannel chan<- 
 	// subdomain must not match default vhost and non existent vhost
 	// or verbose mode is enabled
 	found := !bytes.Equal(body, v.baseline1) && !bytes.Equal(body, v.baseline2)
-	if found || v.globalopts.Verbose {
+	if (found && !helper.SliceContains(v.options.ExcludeLength, int(size))) || v.globalopts.Verbose {
 		resultStatus := false
 		if found {
 			resultStatus = true
@@ -206,6 +211,16 @@ func (v *GobusterVhost) GetConfigString() (string, error) {
 
 	if _, err := fmt.Fprintf(tw, "[+] Timeout:\t%s\n", o.Timeout.String()); err != nil {
 		return "", err
+	}
+
+	if _, err := fmt.Fprintf(tw, "[+] Append Domain:\t%t\n", v.options.AppendDomain); err != nil {
+		return "", err
+	}
+
+	if len(o.ExcludeLength) > 0 {
+		if _, err := fmt.Fprintf(tw, "[+] Exclude Length:\t%s\n", helper.JoinIntSlice(v.options.ExcludeLength)); err != nil {
+			return "", err
+		}
 	}
 
 	if err := tw.Flush(); err != nil {
